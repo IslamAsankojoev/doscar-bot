@@ -1,9 +1,6 @@
-// @ts-nocheck
 import { Client, LocalAuth } from "whatsapp-web.js";
-import { Bot } from "grammy";
+import { Bot, InputFile } from "grammy";
 import qrcode from "qrcode-terminal";
-import fs from 'fs';
-import path from 'path';
 
 const whatsappClient = new Client({
     authStrategy: new LocalAuth(),
@@ -16,61 +13,145 @@ whatsappClient.on('qr', (qr) => {
     qrcode.generate(qr, { small: true });
 });
 
-whatsappClient.on('ready', () => {
-    console.log('WhatsApp готов к использованию');
-});
-
-whatsappClient.on('error', (error) => {
-    console.error('Ошибка WhatsApp:', error);
-});
-
-whatsappClient.on('message', (message) => {
-    console.log(message.body);
-});
-
 bot.command('whatsapp', async (ctx) => {
-    try {
+    console.log('whatsapp command');
+    // const mark = ctx.message?.text?.split(' ')[1];
+    // if(!mark) return;
+    try { 
         const chats = await whatsappClient.getChats();
         if (chats.length === 0) {
-            return ctx.reply('В WhatsApp нет активных чатов.');
+            return;
         }
+    
+        const chatId = chats[0].id._serialized;
+        const searchMessages = await chats[0].fetchMessages({ limit: 10 });
+        // await whatsappClient.searchMessages(mark, { 
+        //     chatId: chatId,
+        //     limit: 200,
+        //  });
 
-        const lastChat = chats[1];
-        const messages = await lastChat.fetchMessages({limit: 50});
+            searchMessages.forEach(async (message, index) => {
+            if (message.hasMedia) {
+                console.log('Загружаем медиа:', message.id);
+                try {
+                    const media = await message.downloadMedia();
+                    const buffer = Buffer.from(media.data, 'base64');
 
-        for (const msg of messages) {
-            const date = new Date(msg.timestamp * 1000).toLocaleString();
-            const sender = msg.fromMe ? 'Вы' : msg.author || msg.from || 'Контакт';
-
-            if (msg.hasMedia) {
-                const media = await msg.downloadMedia(); // Загружаем медиафайл
-        
-                // Проверяем, что медиафайл успешно загружен
-                if (media) {
-                    // Создаем путь для сохранения файла
-                    const fileName = `whatsapp_image_${Date.now()}.${media.mimetype.split('/')[1]}`;
-                    const filePath = path.join(__dirname, 'images', fileName);
-        
-                    // Записываем файл на диск
-                    fs.writeFile(filePath, media.data, 'base64', (err) => {
-                        if (err) {
-                            console.error('Ошибка при сохранении файла:', err);
-                        } else {
-                            console.log(`Файл сохранен: ${filePath}`);
-                        }
-                    });
-                } else {
-                    console.error('Ошибка: не удалось загрузить медиафайл.');
+                    if (media.mimetype.startsWith('image/')) {
+                        await ctx.replyWithPhoto(new InputFile(buffer, `image-${index}.jpg`), { caption: `${message.author || message.from}` });
+                    } else {
+                        await ctx.replyWithDocument(new InputFile(buffer, media.filename || `file-${index}`), { caption: `${message.author || message.from}` });
+                    }
+                } catch (err) {
+                    console.error('Ошибка при загрузке медиа:', err);
+                    ctx.reply('Ошибка при загрузке медиа.');
                 }
+            } else {
+                ctx.reply(`${message.author || message.from}: ${message.body}`);
             }
-        
-        }
+        });
 
     } catch (error) {
         console.error('Ошибка при получении сообщений:', error);
         ctx.reply('Произошла ошибка при получении сообщений из WhatsApp.');
     }
 });
+
+
+whatsappClient.on('error', (error) => {
+    console.error('Ошибка WhatsApp:', error);
+});
+
+bot.command('whatsapp', async (ctx) => {
+    console.log('whatsapp command');
+    try { 
+        const chats = await whatsappClient.getChats();
+        if (chats.length === 0) {
+            return;
+        }
+    
+        const chat = chats[0];
+        const searchMessages = await chat.fetchMessages({ limit: 50 });
+
+        // Объект для группировки сообщений по mediaGroupId
+        const mediaGroups = {} as Record<string, any[]>;
+
+        // Перебираем сообщения и группируем их
+        for (const message of searchMessages) {
+            if (message.hasMedia) {
+                // Получаем mediaGroupId или используем уникальный id для отдельных медиа
+                const groupId = '2';
+
+                if (!mediaGroups[groupId]) {
+                    mediaGroups[groupId] = [];
+                }
+                mediaGroups[groupId].push(message);
+            } else {
+                // Обработка текстовых сообщений или сообщений без медиа
+                await ctx.reply(`${message.author || message.from}: ${message.body}`);
+            }
+        }
+
+        // Обрабатываем каждую группу медиа
+        for (const groupId in mediaGroups) {
+            const messagesInGroup = mediaGroups[groupId];
+            const mediaArray = [];
+
+            for (const message of messagesInGroup) {
+                try {
+                    const media = await message.downloadMedia();
+                    const buffer = Buffer.from(media.data, 'base64');
+
+                    let inputMedia;
+                    if (media.mimetype.startsWith('image/')) {
+                        inputMedia = {
+                            type: 'photo',
+                            media: new InputFile(buffer),
+                            caption: `${message.author || message.from}`,
+                        };
+                    } else if (media.mimetype.startsWith('video/')) {
+                        inputMedia = {
+                            type: 'video',
+                            media: new InputFile(buffer),
+                            caption: `${message.author || message.from}`,
+                        };
+                    } else {
+                        // Для других типов файлов можно отправить их отдельно
+                        await ctx.replyWithDocument(new InputFile(buffer, media.filename || 'file'), { caption: `${message.author || message.from}` });
+                        continue;
+                    }
+
+                    mediaArray.push(inputMedia);
+                } catch (err) {
+                    console.error('Ошибка при загрузке медиа:', err);
+                    await ctx.reply('Ошибка при загрузке медиа.');
+                }
+            }
+
+            if (mediaArray.length > 0) {
+                try {
+                    // Telegram позволяет отправлять максимум 10 медиа в одном альбоме
+                    const chunks = [];
+                    for (let i = 0; i < mediaArray.length; i += 10) {
+                        chunks.push(mediaArray.slice(i, i + 10));
+                    }
+
+                    for (const chunk of chunks) {
+                        await ctx.replyWithMediaGroup(chunk as any);
+                    }
+                } catch (err) {
+                    console.error('Ошибка при отправке медиа-группы:', err);
+                    await ctx.reply('Ошибка при отправке медиа-группы.');
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('Ошибка при получении сообщений:', error);
+        await ctx.reply('Произошла ошибка при получении сообщений из WhatsApp.');
+    }
+});
+
 
 
 bot.command('start', (ctx) => {
