@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "es2016",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "outDir": "./",                       // Папка для компиляции
+    "rootDir": "./",                       // Указываем папку исходников
+    "baseUrl": "./",                          // Базовый путь
+    "paths": {
+      "@/*": ["./*"]                        // Алиас для удобства
+    }
+  },
+  "include": ["src/**/*", "bot.ts"],
+  "exclude": ["node_modules"]
+}

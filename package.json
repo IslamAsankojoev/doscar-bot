@@ -1,0 +1,33 @@
+{
+  "name": "doscar-bot",
+  "version": "1.0.0",
+  "main": "bot.js",
+  "scripts": {
+    "test": "npm run test",
+    "build": "tsc -p tsconfig.json",
+    "start": "node ./bot.js",
+    "dev": "nodemon --watch './**/*.ts' --exec 'npm run build && npm start'"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@grammyjs/menu": "^1.2.2",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.4.5",
+    "grammy": "^1.30.0",
+    "module-alias": "^2.2.3",
+    "path": "^0.12.7",
+    "puppeteer": "^23.5.3",
+    "qrcode-terminal": "^0.12.0",
+    "tsconfig-paths": "^4.2.0",
+    "whatsapp-web.js": "^1.26.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/qrcode-terminal": "^0.12.2",
+    "copyfiles": "^2.4.1",
+    "nodemon": "^3.1.7",
+    "typescript": "^5.6.3"
+  }
+}
